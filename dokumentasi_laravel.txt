@@ -1,0 +1,324 @@
+*Install laravel
+composer create-project laravel/laravel:^10.0 nama_project
+cd nama_project
+
+*Buka env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=db_laravel  <-- ganti jadi nama database
+DB_USERNAME=root
+DB_PASSWORD=
+
+*Buat Database
+CREATE DATABASE db_laravel;
+
+*Buat model, migration & controller sekaligus
+php artisan make:model Person -m -c
+
+*Buka file migration di database/migrations/[timestamp]_create_people_table.php:
+    public function up(): void
+    {
+        Schema::create('people', function (Blueprint $table) {
+            $table->id();
+            $table->string('nama'); // Field untuk nama
+            $table->integer('umur'); // Field untuk umur (integer)
+            $table->timestamps(); // created_at dan updated_at
+        });
+    }
+
+*Jalankan migrasi
+php artisan migrate
+
+*Buka file app/Models/Person.php:
+class Person extends Model
+{
+    use HasFactory;
+
+    // Nama tabel (opsional, karena Laravel otomatis pakai plural)
+    protected $table = 'people';
+    
+    // Field yang boleh diisi (mass assignment)
+    protected $fillable = ['nama', 'umur'];
+}
+
+*Buka file app/Http/Controllers/PersonController.php:
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Person;
+use Illuminate\Http\Request;
+
+class PersonController extends Controller
+{
+    /**
+     * Menampilkan semua data (READ)
+     */
+    public function index()
+    {
+        // Ambil semua data dari tabel people
+        $people = Person::all();
+        
+        // Tampilkan view index dengan mengirim data
+        return view('people.index', compact('people'));
+    }
+
+    /**
+     * Menampilkan form tambah data
+     */
+    public function create()
+    {
+        return view('people.create');
+    }
+
+    /**
+     * Menyimpan data baru ke database (CREATE)
+     */
+    public function store(Request $request)
+    {
+        // Validasi input
+        $request->validate([
+            'nama' => 'required|string|max:255',
+            'umur' => 'required|integer|min:1|max:150',
+        ]);
+
+        // Simpan data ke database
+        Person::create([
+            'nama' => $request->nama,
+            'umur' => $request->umur,
+        ]);
+
+        // Redirect ke halaman index dengan pesan sukses
+        return redirect()->route('people.index')->with('success', 'Data berhasil ditambahkan!');
+    }
+
+    /**
+     * Menampilkan detail data (optional - bisa diabaikan)
+     */
+    public function show(Person $person)
+    {
+        return view('people.show', compact('person'));
+    }
+
+    /**
+     * Menampilkan form edit data
+     */
+    public function edit(Person $person)
+    {
+        return view('people.edit', compact('person'));
+    }
+
+    /**
+     * Mengupdate data di database (UPDATE)
+     */
+    public function update(Request $request, Person $person)
+    {
+        // Validasi input
+        $request->validate([
+            'nama' => 'required|string|max:255',
+            'umur' => 'required|integer|min:1|max:150',
+        ]);
+
+        // Update data
+        $person->update([
+            'nama' => $request->nama,
+            'umur' => $request->umur,
+        ]);
+
+        // Redirect ke halaman index dengan pesan sukses
+        return redirect()->route('people.index')->with('success', 'Data berhasil diupdate!');
+    }
+
+    /**
+     * Menghapus data dari database (DELETE)
+     */
+    public function destroy(Person $person)
+    {
+        // Hapus data
+        $person->delete();
+
+        // Redirect ke halaman index dengan pesan sukses
+        return redirect()->route('people.index')->with('success', 'Data berhasil dihapus!');
+    }
+}
+
+
+*Buat folder resources/views/people:
+*Buat file resources/views/people/index.blade.php
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD Sederhana - Data Orang</title>
+</head>
+<body>
+    <h1>Data Orang</h1>
+    
+    <!-- Tampilkan pesan sukses -->
+    <?php if(session('success')): ?>
+        <div style="color: green; margin-bottom: 10px;">
+            <?php echo session('success'); ?>
+        </div>
+    <?php endif; ?>
+    
+    <!-- Tombol tambah data -->
+    <a href="<?php echo route('people.create'); ?>">
+        <button type="button">Tambah Data</button>
+    </a>
+    
+    <br><br>
+    
+    <!-- Tabel data -->
+    <table border="1" cellpadding="10" cellspacing="0">
+        <thead>
+            <tr>
+                <th>No</th>
+                <th>Nama</th>
+                <th>Umur</th>
+                <th>Aksi</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php $no = 1; ?>
+            <?php foreach($people as $person): ?>
+            <tr>
+                <td><?php echo $no++; ?></td>
+                <td><?php echo $person->nama; ?></td>
+                <td><?php echo $person->umur; ?> tahun</td>
+                <td>
+                    <!-- Tombol Edit -->
+                    <a href="<?php echo route('people.edit', $person->id); ?>">
+                        <button type="button">Edit</button>
+                    </a>
+                    
+                    <!-- Form Hapus (pakai POST karena method DELETE) -->
+                    <form action="<?php echo route('people.destroy', $person->id); ?>" method="POST" style="display: inline;">
+                        <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+                        <input type="hidden" name="_method" value="DELETE">
+                        <button type="submit" onclick="return confirm('Yakin ingin menghapus?')">Hapus</button>
+                    </form>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+            
+            <!-- Jika data kosong -->
+            <?php if(count($people) == 0): ?>
+            <tr>
+                <td colspan="4" align="center">Belum ada data</td>
+            </tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
+</body>
+</html>
+
+
+*Buat file resources/views/people/create.blade.php
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tambah Data Orang</title>
+</head>
+<body>
+    <h1>Tambah Data Orang</h1>
+    
+    <!-- Link kembali ke index -->
+    <a href="<?php echo route('people.index'); ?>">← Kembali</a>
+    
+    <br><br>
+    
+    <!-- Form tambah data -->
+    <form action="<?php echo route('people.store'); ?>" method="POST">
+        <!-- Token CSRF untuk keamanan -->
+        <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+        
+        <div>
+            <label for="nama">Nama:</label><br>
+            <input type="text" id="nama" name="nama" required>
+        </div>
+        
+        <br>
+        
+        <div>
+            <label for="umur">Umur:</label><br>
+            <input type="number" id="umur" name="umur" min="1" max="150" required>
+        </div>
+        
+        <br>
+        
+        <div>
+            <button type="submit">Simpan</button>
+        </div>
+    </form>
+</body>
+</html>
+
+
+
+*Buat file resources/views/people/edit.blade.php:
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Data Orang</title>
+</head>
+<body>
+    <h1>Edit Data Orang</h1>
+    
+    <!-- Link kembali ke index -->
+    <a href="<?php echo route('people.index'); ?>">← Kembali</a>
+    
+    <br><br>
+    
+    <!-- Form edit data -->
+    <form action="<?php echo route('people.update', $person->id); ?>" method="POST">
+        <!-- Token CSRF untuk keamanan -->
+        <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+        
+        <!-- Spoofing method PUT karena HTML form cuma support GET dan POST -->
+        <input type="hidden" name="_method" value="PUT">
+        
+        <div>
+            <label for="nama">Nama:</label><br>
+            <input type="text" id="nama" name="nama" value="<?php echo $person->nama; ?>" required>
+        </div>
+        
+        <br>
+        
+        <div>
+            <label for="umur">Umur:</label><br>
+            <input type="number" id="umur" name="umur" min="1" max="150" value="<?php echo $person->umur; ?>" required>
+        </div>
+        
+        <br>
+        
+        <div>
+            <button type="submit">Update</button>
+        </div>
+    </form>
+</body>
+</html>
+
+
+Buka file routes/web.php:
+letakkan kode ini di baris awal
+<?php
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\PersonController;
+
+// Route untuk halaman utama (opsional, redirect ke people)
+Route::get('/', function () {
+    return redirect()->route('people.index');
+});
+
+// Route resource untuk Person (otomatis buat semua route CRUD)
+Route::resource('people', PersonController::class);
+
+
+*Jalankan server
+php artisan serve
